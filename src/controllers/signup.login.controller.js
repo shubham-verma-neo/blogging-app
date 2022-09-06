@@ -1,6 +1,8 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Users } = require('../models/signup.model');
+const {signupSuccess,passwordNotMatch,invalidEmailPassword} = require('../middleware/message');
+
 
 //------------------------------------------------------------------------------------------------------------------//
 
@@ -16,12 +18,12 @@ const signup = async (req, res) => {
             await user.save();
         }
         await createUser()
-            .then(() => res.send('User signup successfully....'))
+            .then(() => res.send(signupSuccess))
             .catch(error => res.status(400).send(error.message));
     }
     else {
-        const error = new Error('Password and confirm password does not match....');
-        console.log(error.message);
+        const error = new Error(passwordNotMatch);
+        // console.log(error.message);
         return res.send(error.message);
     }
 }
@@ -38,13 +40,15 @@ const login = async (req, res) => {
         return res.send(error.message);
     }
 
-    if (!user || !await bcrypt.compare(req.query.password, user.password))
-        return res.status(400).send('Invalid email or password. Please try again...');
-
+    if (!user || !await bcrypt.compare(req.query.password, user.password)) {
+        // const error = new Error('Invalid email or password. Please try again...');
+        return res.status(401).send(invalidEmailPassword);
+        // throw error;
+    }
     const token = jwt.sign({ _id: user._id }, 'neosoft');
     return res.header('auth-token', token).send(token);
 }
 
 //------------------------------------------------------------------------------------------------------------------//
 
-module.exports= { signup, login }
+module.exports = { signup, login }

@@ -1,5 +1,16 @@
 const { Comments, commentSchema } = require('../models/comment.model');
 const { Blogs } = require('../models/blog.model');
+const {
+    noBlog,
+    noTitle,
+    noTag,
+    invalidInput,
+    addBlogSuccess,
+    addCommentRejected1,
+    addCommentRejected2,
+    addCommentSuccess,
+    editBlogSuccess,
+    editBlogRejected } = require('../middleware/message');
 
 //------------------------------------------------------------------------------------------------------------------//
 
@@ -11,7 +22,7 @@ const blogs = async (req, res) => {
                 .find({ userId: req.query.userId })
                 .populate('userId comments comments.userId ', 'firstName lastName -_id ');
             if (!blog[0])
-                return res.status(400).send(`No Blogs Yet.`);
+                return res.status(400).send(noBlog);
             return res.send(blog);
         } catch (error) {
             return res.send(error.message)
@@ -24,27 +35,27 @@ const blogs = async (req, res) => {
                 .find({ title: req.query.title })
                 .populate('userId comments comments.userId ', 'firstName lastName -_id ');
             if (!blog[0])
-                return res.status(400).send(`No blog found with title "${req.query.title}".`);
+                return res.status(400).send(noTitle);
             return res.send(blog);
         } catch (error) {
             return res.send(error.message)
         }
     }
 
-    else if (req.query.tag) {
+    else if (req.query.tags) {
         try {
             blog = await Blogs
-                .find({ tags: req.query.tag })
+                .find({ tags: req.query.tags })
                 .populate('userId comments comments.userId ', 'firstName lastName -_id ');
             if (!blog[0])
-                return res.status(400).send(`No blog found with the tag "${req.query.tag}".`);
+                return res.status(400).send(noTag);
             return res.send(blog);
         } catch (error) {
             return res.send(error.message)
         }
     }
     else {
-        return res.status(400).send('Invalid input. Please search by "UserId", "Title", or "Tags".')
+        return res.status(400).send(invalidInput)
     }
 }
 //------------------------------------------------------------------------------------------------------------------//
@@ -53,12 +64,12 @@ const add_blog = async (req, res) => {
     let blog;
     try {
         blog = await new Blogs({
-            userId: req.body.userId,
+            userId: req.user._id,
             title: req.body.title,
             body: req.body.body,
             tags: req.body.tags
         }).save();
-        return res.send(blog);
+        return res.send({ message: addBlogSuccess, blog: blog });
     }
     catch (error) {
         return res.send(error.message);
@@ -68,8 +79,12 @@ const add_blog = async (req, res) => {
 //------------------------------------------------------------------------------------------------------------------//
 
 const add_comment = async (req, res) => {
-    if (!req.body.comment || !req.body.userId) {
-        const error = new Error('UserId and Comment required..');
+    if (!req.query.id) {
+        const error = new Error(addCommentRejected2);
+        return res.status(400).send(error.message);
+    }
+    if (!req.body.comment) {
+        const error = new Error(addCommentRejected1);
         return res.status(400).send(error.message);
     }
     let blog;
@@ -80,11 +95,11 @@ const add_comment = async (req, res) => {
         return res.send(error.message)
     }
     blog.comments.push(await new Comments({
-        userId: req.body.userId,
+        userId: req.user._id,
         comment: req.body.comment
     }));
     blog.save();
-    return res.send('Comment added successfully');
+    return res.send(addCommentSuccess);
 }
 
 //------------------------------------------------------------------------------------------------------------------//
@@ -93,12 +108,12 @@ const edit_blog = async (req, res) => {
     let blog;
     try {
         blog = await Blogs
-            .findById(req.query._id);
+            .findById(req.query.id);
     } catch (error) {
         return res.send(error.message)
     }
 
-    if (req.query.userId && req.query.userId == blog.userId) {
+    if (req.user._id == blog.userId) {
         if (req.body.body)
             blog.body = req.body.body;
         if (req.body.title)
@@ -106,9 +121,9 @@ const edit_blog = async (req, res) => {
         if (req.body.tags)
             blog.tags = req.body.tags;
         blog.save();
-        return res.send(blog);
+        return res.send({message: editBlogSuccess ,blog:blog});
     } else {
-        let error = new Error('Only author of blog is allowed to edit the blog.');
+        let error = new Error(editBlogRejected);
         return res.status(401).send(error.message);
     }
 }
